@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <immintrin.h>
+#include <cctype>
 
 #ifdef _MSC_VER
 #include <intrin.h>
@@ -56,6 +57,33 @@ bool hasAVX2() {
 }
 
 // ============================================================================
+// Helpers and Utilities
+// ============================================================================
+
+// Fast ASCII case insensitivity that is safe from UB on non-ASCII characters
+inline uint8_t toLowerByte(uint8_t c) {
+    return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c;
+}
+
+// Zero-allocation case-insensitive attribute scanner for JSON-LD script type tags
+static bool tagContainsJsonLD(const uint8_t* data, size_t start, size_t end) {
+    const char* target = "application/ld+json";
+    const size_t targetLen = 19;
+    if (end - start < targetLen) return false;
+    for (size_t idx = start; idx + targetLen <= end; idx++) {
+        bool match = true;
+        for (size_t k = 0; k < targetLen; k++) {
+            if (toLowerByte(data[idx + k]) != target[k]) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
+}
+
+// ============================================================================
 // C++ Parser Implementations
 // ============================================================================
 
@@ -69,10 +97,12 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
     bool in_style = false;
     bool in_comment = false;
     
+    const bool useAvx2 = hasAVX2();
+    
     while (i < length) {
         if (!in_tag && !in_script && !in_style && !in_comment) {
-            // AVX2 accelerated search for '<' or whitespace if we have AVX2 support
-            if (hasAVX2() && i + 31 < length) {
+            // AVX2 accelerated search for '<' or whitespace
+            if (useAvx2 && i + 31 < length) {
                 __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));
                 __m256i tagChar = _mm256_set1_epi8('<');
                 __m256i spaceChar = _mm256_set1_epi8(' ');
@@ -93,6 +123,18 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
                     result.append(reinterpret_cast<const char*>(data + i), 32);
                     i += 32;
                     continue;
+                } else {
+                    unsigned long index = 32;
+#ifdef _MSC_VER
+                    _BitScanForward(&index, mask);
+#else
+                    index = __builtin_ctz(mask);
+#endif
+                    if (index > 0) {
+                        result.append(reinterpret_cast<const char*>(data + i), index);
+                        i += index;
+                        continue;
+                    }
                 }
             }
         }
@@ -109,37 +151,57 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
         }
         
         if (in_script) {
-            if (c == '<' && i + 8 < length &&
+            // Tolerant script closing tag match: </script  > or </script type="...">
+            if (c == '<' && i + 7 < length &&
                 data[i + 1] == '/' &&
-                tolower(data[i + 2]) == 's' &&
-                tolower(data[i + 3]) == 'c' &&
-                tolower(data[i + 4]) == 'r' &&
-                tolower(data[i + 5]) == 'i' &&
-                tolower(data[i + 6]) == 'p' &&
-                tolower(data[i + 7]) == 't' &&
-                data[i + 8] == '>') {
-                in_script = false;
-                i += 9;
-            } else {
-                i++;
+                toLowerByte(data[i + 2]) == 's' &&
+                toLowerByte(data[i + 3]) == 'c' &&
+                toLowerByte(data[i + 4]) == 'r' &&
+                toLowerByte(data[i + 5]) == 'i' &&
+                toLowerByte(data[i + 6]) == 'p' &&
+                toLowerByte(data[i + 7]) == 't') {
+                
+                char next = (i + 8 < length) ? data[i + 8] : '>';
+                if (next == '>' || next == ' ' || next == '\t' || next == '\r' || next == '\n' || next == '/') {
+                    size_t closeIdx = i + 8;
+                    while (closeIdx < length && data[closeIdx] != '>') {
+                        closeIdx++;
+                    }
+                    if (closeIdx < length) {
+                        in_script = false;
+                        i = closeIdx + 1;
+                        continue;
+                    }
+                }
             }
+            i++;
             continue;
         }
         
         if (in_style) {
-            if (c == '<' && i + 7 < length &&
+            // Tolerant style closing tag match: </style  >
+            if (c == '<' && i + 6 < length &&
                 data[i + 1] == '/' &&
-                tolower(data[i + 2]) == 's' &&
-                tolower(data[i + 3]) == 't' &&
-                tolower(data[i + 4]) == 'y' &&
-                tolower(data[i + 5]) == 'l' &&
-                tolower(data[i + 6]) == 'e' &&
-                data[i + 7] == '>') {
-                in_style = false;
-                i += 8;
-            } else {
-                i++;
+                toLowerByte(data[i + 2]) == 's' &&
+                toLowerByte(data[i + 3]) == 't' &&
+                toLowerByte(data[i + 4]) == 'y' &&
+                toLowerByte(data[i + 5]) == 'l' &&
+                toLowerByte(data[i + 6]) == 'e') {
+                
+                char next = (i + 7 < length) ? data[i + 7] : '>';
+                if (next == '>' || next == ' ' || next == '\t' || next == '\r' || next == '\n' || next == '/') {
+                    size_t closeIdx = i + 7;
+                    while (closeIdx < length && data[closeIdx] != '>') {
+                        closeIdx++;
+                    }
+                    if (closeIdx < length) {
+                        in_style = false;
+                        i = closeIdx + 1;
+                        continue;
+                    }
+                }
             }
+            i++;
             continue;
         }
         
@@ -152,12 +214,12 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
                 continue;
             }
             if (i + 7 < length &&
-                tolower(data[i + 1]) == 's' &&
-                tolower(data[i + 2]) == 'c' &&
-                tolower(data[i + 3]) == 'r' &&
-                tolower(data[i + 4]) == 'i' &&
-                tolower(data[i + 5]) == 'p' &&
-                tolower(data[i + 6]) == 't' &&
+                toLowerByte(data[i + 1]) == 's' &&
+                toLowerByte(data[i + 2]) == 'c' &&
+                toLowerByte(data[i + 3]) == 'r' &&
+                toLowerByte(data[i + 4]) == 'i' &&
+                toLowerByte(data[i + 5]) == 'p' &&
+                toLowerByte(data[i + 6]) == 't' &&
                 (data[i + 7] == '>' || data[i + 7] == ' ' || data[i + 7] == '\t' || data[i + 7] == '\r' || data[i + 7] == '\n')) {
                 in_script = true;
                 in_tag = false;
@@ -165,11 +227,11 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
                 continue;
             }
             if (i + 6 < length &&
-                tolower(data[i + 1]) == 's' &&
-                tolower(data[i + 2]) == 't' &&
-                tolower(data[i + 3]) == 'y' &&
-                tolower(data[i + 4]) == 'l' &&
-                tolower(data[i + 5]) == 'e' &&
+                toLowerByte(data[i + 1]) == 's' &&
+                toLowerByte(data[i + 2]) == 't' &&
+                toLowerByte(data[i + 3]) == 'y' &&
+                toLowerByte(data[i + 4]) == 'l' &&
+                toLowerByte(data[i + 5]) == 'e' &&
                 (data[i + 6] == '>' || data[i + 6] == ' ' || data[i + 6] == '\t' || data[i + 6] == '\r' || data[i + 6] == '\n')) {
                 in_style = true;
                 in_tag = false;
@@ -177,23 +239,41 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
                 continue;
             }
             
-            bool is_block_close = false;
+            // Check for HTML5 Block Boundaries and self-closing tags
+            bool is_block = false;
             if (i + 2 < length && data[i + 1] == '/') {
-                char next1 = tolower(data[i + 2]);
-                if (next1 == 'p' && i + 3 < length && data[i + 3] == '>') {
-                    is_block_close = true;
-                } else if (next1 == 'd' && i + 5 < length && tolower(data[i + 3]) == 'i' && tolower(data[i + 4]) == 'v' && data[i + 5] == '>') {
-                    is_block_close = true;
-                } else if (next1 == 'l' && i + 4 < length && tolower(data[i + 3]) == 'i' && data[i + 4] == '>') {
-                    is_block_close = true;
-                } else if (next1 == 'b' && i + 4 < length && tolower(data[i + 3]) == 'r' && data[i + 4] == '>') {
-                    is_block_close = true;
-                } else if (next1 == 'h' && i + 4 < length && data[i + 3] >= '1' && data[i + 3] <= '6' && data[i + 4] == '>') {
-                    is_block_close = true;
+                size_t nameStart = i + 2;
+                size_t nameLen = 0;
+                while (nameStart + nameLen < length && data[nameStart + nameLen] != '>' && data[nameStart + nameLen] != ' ' && data[nameStart + nameLen] != '\t' && data[nameStart + nameLen] != '\r' && data[nameStart + nameLen] != '\n') {
+                    nameLen++;
+                }
+                if (nameLen > 0) {
+                    std::string tagNameStr(reinterpret_cast<const char*>(data + nameStart), nameLen);
+                    for (char &ch : tagNameStr) ch = toLowerByte(ch);
+                    if (tagNameStr == "p" || tagNameStr == "div" || tagNameStr == "li" || tagNameStr == "br" ||
+                        (tagNameStr[0] == 'h' && tagNameStr.length() == 2 && tagNameStr[1] >= '1' && tagNameStr[1] <= '6') ||
+                        tagNameStr == "section" || tagNameStr == "article" || tagNameStr == "header" || tagNameStr == "footer" ||
+                        tagNameStr == "aside" || tagNameStr == "nav" || tagNameStr == "main" || tagNameStr == "tr" ||
+                        tagNameStr == "td" || tagNameStr == "ul" || tagNameStr == "ol" || tagNameStr == "blockquote") {
+                        is_block = true;
+                    }
+                }
+            } else if (i + 2 < length) {
+                size_t nameStart = i + 1;
+                size_t nameLen = 0;
+                while (nameStart + nameLen < length && data[nameStart + nameLen] != '>' && data[nameStart + nameLen] != '/' && data[nameStart + nameLen] != ' ' && data[nameStart + nameLen] != '\t' && data[nameStart + nameLen] != '\r' && data[nameStart + nameLen] != '\n') {
+                    nameLen++;
+                }
+                if (nameLen > 0) {
+                    std::string tagNameStr(reinterpret_cast<const char*>(data + nameStart), nameLen);
+                    for (char &ch : tagNameStr) ch = toLowerByte(ch);
+                    if (tagNameStr == "br" || tagNameStr == "hr") {
+                        is_block = true;
+                    }
                 }
             }
             
-            if (is_block_close) {
+            if (is_block) {
                 if (!result.empty() && result.back() != '\n') {
                     while (!result.empty() && result.back() == ' ') {
                         result.pop_back();
@@ -234,21 +314,34 @@ std::string extractReadableTextCpp(const uint8_t* data, size_t length) {
 std::vector<std::string> extractLinksCpp(const uint8_t* data, size_t length) {
     std::vector<std::string> links;
     size_t i = 0;
+    const bool useAvx2 = hasAVX2();
     
     while (i < length) {
-        if (hasAVX2() && i + 31 < length) {
+        if (useAvx2 && i + 31 < length) {
             __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));
             __m256i target = _mm256_set1_epi8('<');
             int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(chunk, target));
             if (mask == 0) {
                 i += 32;
                 continue;
+            } else {
+                unsigned long index = 32;
+#ifdef _MSC_VER
+                _BitScanForward(&index, mask);
+#else
+                index = __builtin_ctz(mask);
+#endif
+                if (index > 0) {
+                    i += index;
+                    continue;
+                }
             }
         }
         
         if (data[i] == '<') {
-            if (i + 2 < length && (data[i + 1] == 'a' || data[i + 1] == 'A') && 
-                (data[i + 2] == ' ' || data[i + 2] == '\t' || data[i + 2] == '\r' || data[i + 2] == '\n')) {
+            // Support <a> tags with no space, or with standard newlines, tabs, and self-closing slashes
+            if (i + 2 < length && (toLowerByte(data[i + 1]) == 'a') && 
+                (data[i + 2] == '>' || data[i + 2] == '/' || data[i + 2] == ' ' || data[i + 2] == '\t' || data[i + 2] == '\r' || data[i + 2] == '\n')) {
                 size_t tag_start = i;
                 size_t tag_end = tag_start;
                 for (size_t j = tag_start; j < length; j++) {
@@ -260,11 +353,13 @@ std::vector<std::string> extractLinksCpp(const uint8_t* data, size_t length) {
                 
                 if (tag_end > tag_start) {
                     for (size_t k = tag_start + 2; k + 5 < tag_end; k++) {
-                        if (tolower(data[k]) == 'h' &&
-                            tolower(data[k + 1]) == 'r' &&
-                            tolower(data[k + 2]) == 'e' &&
-                            tolower(data[k + 3]) == 'f' &&
-                            data[k + 4] == '=') {
+                        // Ensure href attribute name is preceded by standard boundaries, preventing class-name matching
+                        if (toLowerByte(data[k]) == 'h' &&
+                            toLowerByte(data[k + 1]) == 'r' &&
+                            toLowerByte(data[k + 2]) == 'e' &&
+                            toLowerByte(data[k + 3]) == 'f' &&
+                            data[k + 4] == '=' &&
+                            (data[k - 1] == ' ' || data[k - 1] == '\t' || data[k - 1] == '\r' || data[k - 1] == '\n' || data[k - 1] == 'a' || data[k - 1] == 'A')) {
                             
                             size_t val_start = k + 5;
                             while (val_start < tag_end && (data[val_start] == ' ' || data[val_start] == '\t')) {
@@ -309,15 +404,27 @@ std::vector<std::string> extractByTagCpp(const uint8_t* data, size_t length, con
     std::vector<std::string> results;
     size_t i = 0;
     size_t tagLen = tagName.length();
+    const bool useAvx2 = hasAVX2();
     
     while (i < length) {
-        if (hasAVX2() && i + 31 < length) {
+        if (useAvx2 && i + 31 < length) {
             __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));
             __m256i target = _mm256_set1_epi8('<');
             int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(chunk, target));
             if (mask == 0) {
                 i += 32;
                 continue;
+            } else {
+                unsigned long index = 32;
+#ifdef _MSC_VER
+                _BitScanForward(&index, mask);
+#else
+                index = __builtin_ctz(mask);
+#endif
+                if (index > 0) {
+                    i += index;
+                    continue;
+                }
             }
         }
         
@@ -326,7 +433,7 @@ std::vector<std::string> extractByTagCpp(const uint8_t* data, size_t length, con
             if (i + tagLen + 1 < length) {
                 bool name_match = true;
                 for (size_t k = 0; k < tagLen; k++) {
-                    if (tolower(data[i + 1 + k]) != tolower(tagName[k])) {
+                    if (toLowerByte(data[i + 1 + k]) != toLowerByte(tagName[k])) {
                         name_match = false;
                         break;
                     }
@@ -350,25 +457,37 @@ std::vector<std::string> extractByTagCpp(const uint8_t* data, size_t length, con
                 
                 if (op_end > i) {
                     size_t cl_start = 0;
+                    size_t cl_end = 0;
                     for (size_t j = op_end + 1; j + tagLen + 2 < length; j++) {
                         if (data[j] == '<' && data[j+1] == '/') {
                             bool cl_match = true;
                             for (size_t k = 0; k < tagLen; k++) {
-                                if (tolower(data[j + 2 + k]) != tolower(tagName[k])) {
+                                if (toLowerByte(data[j + 2 + k]) != toLowerByte(tagName[k])) {
                                     cl_match = false;
                                     break;
                                 }
                             }
-                            if (cl_match && data[j + 2 + tagLen] == '>') {
-                                cl_start = j;
-                                break;
+                            if (cl_match) {
+                                // Tolerant closing tags like </h1  >
+                                char next = (j + 2 + tagLen < length) ? data[j + 2 + tagLen] : '>';
+                                if (next == '>' || next == ' ' || next == '\t' || next == '\r' || next == '\n' || next == '/') {
+                                    size_t closeIdx = j + 2 + tagLen;
+                                    while (closeIdx < length && data[closeIdx] != '>') {
+                                        closeIdx++;
+                                    }
+                                    if (closeIdx < length) {
+                                        cl_start = j;
+                                        cl_end = closeIdx;
+                                        break;
+                                    }
+                                }
                             }
                         }
                     }
                     
                     if (cl_start > op_end) {
                         results.push_back(std::string(reinterpret_cast<const char*>(data + op_end + 1), cl_start - (op_end + 1)));
-                        i = cl_start + tagLen + 3;
+                        i = cl_end + 1;
                         continue;
                     }
                 }
@@ -382,26 +501,38 @@ std::vector<std::string> extractByTagCpp(const uint8_t* data, size_t length, con
 std::string extractJsonLDCpp(const uint8_t* data, size_t length) {
     std::string result;
     size_t i = 0;
+    const bool useAvx2 = hasAVX2();
     
     while (i < length) {
-        if (hasAVX2() && i + 31 < length) {
+        if (useAvx2 && i + 31 < length) {
             __m256i chunk = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(data + i));
             __m256i target = _mm256_set1_epi8('<');
             int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(chunk, target));
             if (mask == 0) {
                 i += 32;
                 continue;
+            } else {
+                unsigned long index = 32;
+#ifdef _MSC_VER
+                _BitScanForward(&index, mask);
+#else
+                index = __builtin_ctz(mask);
+#endif
+                if (index > 0) {
+                    i += index;
+                    continue;
+                }
             }
         }
         
         if (data[i] == '<') {
             if (i + 7 < length &&
-                tolower(data[i+1]) == 's' &&
-                tolower(data[i+2]) == 'c' &&
-                tolower(data[i+3]) == 'r' &&
-                tolower(data[i+4]) == 'i' &&
-                tolower(data[i+5]) == 'p' &&
-                tolower(data[i+6]) == 't' &&
+                toLowerByte(data[i+1]) == 's' &&
+                toLowerByte(data[i+2]) == 'c' &&
+                toLowerByte(data[i+3]) == 'r' &&
+                toLowerByte(data[i+4]) == 'i' &&
+                toLowerByte(data[i+5]) == 'p' &&
+                toLowerByte(data[i+6]) == 't' &&
                 (data[i+7] == '>' || data[i+7] == ' ' || data[i+7] == '\t' || data[i+7] == '\r' || data[i+7] == '\n')) {
                 
                 size_t op_end = i;
@@ -413,21 +544,32 @@ std::string extractJsonLDCpp(const uint8_t* data, size_t length) {
                 }
                 
                 if (op_end > i) {
-                    std::string openingTag(reinterpret_cast<const char*>(data + i), op_end - i + 1);
-                    if (openingTag.find("application/ld+json") != std::string::npos) {
+                    // Allocation-free case-insensitive find inside script tag attributes
+                    if (tagContainsJsonLD(data, i + 8, op_end)) {
                         size_t cl_start = 0;
+                        size_t cl_end = 0;
                         for (size_t j = op_end + 1; j + 8 < length; j++) {
                             if (data[j] == '<' &&
                                 data[j+1] == '/' &&
-                                tolower(data[j+2]) == 's' &&
-                                tolower(data[j+3]) == 'c' &&
-                                tolower(data[j+4]) == 'r' &&
-                                tolower(data[j+5]) == 'i' &&
-                                tolower(data[j+6]) == 'p' &&
-                                tolower(data[j+7]) == 't' &&
-                                data[j+8] == '>') {
-                                cl_start = j;
-                                break;
+                                toLowerByte(data[j+2]) == 's' &&
+                                toLowerByte(data[j+3]) == 'c' &&
+                                toLowerByte(data[j+4]) == 'r' &&
+                                toLowerByte(data[j+5]) == 'i' &&
+                                toLowerByte(data[j+6]) == 'p' &&
+                                toLowerByte(data[j+7]) == 't') {
+                                
+                                char next = (j + 8 < length) ? data[j + 8] : '>';
+                                if (next == '>' || next == ' ' || next == '\t' || next == '\r' || next == '\n' || next == '/') {
+                                    size_t closeIdx = j + 8;
+                                    while (closeIdx < length && data[closeIdx] != '>') {
+                                        closeIdx++;
+                                    }
+                                    if (closeIdx < length) {
+                                        cl_start = j;
+                                        cl_end = closeIdx;
+                                        break;
+                                    }
+                                }
                             }
                         }
                         
@@ -436,7 +578,7 @@ std::string extractJsonLDCpp(const uint8_t* data, size_t length) {
                                 result += "\n";
                             }
                             result += std::string(reinterpret_cast<const char*>(data + op_end + 1), cl_start - (op_end + 1));
-                            i = cl_start + 9;
+                            i = cl_end + 1;
                             continue;
                         }
                     }
@@ -457,7 +599,10 @@ extern "C" {
 JNIEXPORT jstring JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractReadableText(
     JNIEnv* env, jobject obj, jbyteArray htmlData) {
     
+    if (htmlData == nullptr) return env->NewStringUTF("");
     jsize len = env->GetArrayLength(htmlData);
+    if (len == 0) return env->NewStringUTF("");
+
     void* bytes = env->GetPrimitiveArrayCritical(htmlData, nullptr);
     if (!bytes) return env->NewStringUTF("");
 
@@ -470,17 +615,19 @@ JNIEXPORT jstring JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractReadableTe
 JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractLinks(
     JNIEnv* env, jobject obj, jbyteArray htmlData) {
     
+    jclass stringClazz = env->FindClass("java/lang/String");
+    if (htmlData == nullptr) return env->NewObjectArray(0, stringClazz, nullptr);
     jsize len = env->GetArrayLength(htmlData);
+    if (len == 0) return env->NewObjectArray(0, stringClazz, nullptr);
+
     void* bytes = env->GetPrimitiveArrayCritical(htmlData, nullptr);
     if (!bytes) {
-        jclass stringClazz = env->FindClass("java/lang/String");
         return env->NewObjectArray(0, stringClazz, nullptr);
     }
 
     std::vector<std::string> links = extractLinksCpp(reinterpret_cast<const uint8_t*>(bytes), len);
     env->ReleasePrimitiveArrayCritical(htmlData, bytes, JNI_ABORT);
 
-    jclass stringClazz = env->FindClass("java/lang/String");
     jobjectArray array = env->NewObjectArray(static_cast<jsize>(links.size()), stringClazz, nullptr);
     for (size_t i = 0; i < links.size(); i++) {
         jstring val = env->NewStringUTF(links[i].c_str());
@@ -493,21 +640,23 @@ JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractLinks
 JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractByTag(
     JNIEnv* env, jobject obj, jbyteArray htmlData, jstring tagName) {
     
+    jclass stringClazz = env->FindClass("java/lang/String");
+    if (htmlData == nullptr || tagName == nullptr) return env->NewObjectArray(0, stringClazz, nullptr);
     jsize len = env->GetArrayLength(htmlData);
+    if (len == 0) return env->NewObjectArray(0, stringClazz, nullptr);
+
     const char* tagChars = env->GetStringUTFChars(tagName, nullptr);
     std::string tagStr(tagChars ? tagChars : "");
     if (tagChars) env->ReleaseStringUTFChars(tagName, tagChars);
 
     void* bytes = env->GetPrimitiveArrayCritical(htmlData, nullptr);
     if (!bytes || tagStr.empty()) {
-        jclass stringClazz = env->FindClass("java/lang/String");
         return env->NewObjectArray(0, stringClazz, nullptr);
     }
 
     std::vector<std::string> contents = extractByTagCpp(reinterpret_cast<const uint8_t*>(bytes), len, tagStr);
     env->ReleasePrimitiveArrayCritical(htmlData, bytes, JNI_ABORT);
 
-    jclass stringClazz = env->FindClass("java/lang/String");
     jobjectArray array = env->NewObjectArray(static_cast<jsize>(contents.size()), stringClazz, nullptr);
     for (size_t i = 0; i < contents.size(); i++) {
         jstring val = env->NewStringUTF(contents[i].c_str());
@@ -520,7 +669,10 @@ JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractByTag
 JNIEXPORT jstring JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractJsonLD(
     JNIEnv* env, jobject obj, jbyteArray htmlData) {
     
+    if (htmlData == nullptr) return env->NewStringUTF("");
     jsize len = env->GetArrayLength(htmlData);
+    if (len == 0) return env->NewStringUTF("");
+
     void* bytes = env->GetPrimitiveArrayCritical(htmlData, nullptr);
     if (!bytes) return env->NewStringUTF("");
 
