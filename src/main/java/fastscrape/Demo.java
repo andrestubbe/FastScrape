@@ -1,119 +1,151 @@
 package fastscrape;
 
-import java.nio.charset.StandardCharsets;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * Hero Demo demonstrating FastScrape SIMD capabilities.
+ * Hero Demo — fetches a real Wikipedia page and visually scans it.
+ * Shows an animated HTML-shrinking / text-growing progress bar,
+ * extraction stats, and a clean text preview — all in the terminal.
  */
 public class Demo {
 
-    private Demo() {
-        // Utility class
-    }
+    private Demo() {}
+
+    // ── ANSI helpers ────────────────────────────────────────────────────────
+    private static final String R  = "\033[0m";
+    private static final String B  = "\033[1m";
+    private static final String CY = "\033[36m";
+    private static final String GR = "\033[32m";
+    private static final String YL = "\033[33m";
+    private static final String MG = "\033[35m";
+    private static final String RD = "\033[31m";
+    private static final String DM = "\033[90m";
+    private static final String ER = "\033[K";
+    private static final String[] SPIN = {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"};
+
+    private static final String TARGET_URL =
+            "https://en.wikipedia.org/wiki/SIMD";
 
     /**
      * Main entry point for FastScrape demo.
-     * 
+     *
      * @param args command line arguments
+     * @throws Exception if the HTTP fetch fails
      */
-    public static void main(String[] args) {
-        System.out.println("\u001B[35m====================================================================\u001B[0m");
-        System.out.println("\u001B[36;1m⚡ FastScrape SIMD-AVX2 Engine — Hero Demo ⚡\u001B[0m");
-        System.out.println("\u001B[35m====================================================================\u001B[0m");
+    public static void main(String[] args) throws Exception {
+        banner();
 
-        // Mock HTML representing a standard complex web page with script, style, links, tags, and JSON-LD
-        String mockHtml = "<html>\n" +
-                "<head>\n" +
-                "  <title>FastScrape — High-Performance JNI scraper</title>\n" +
-                "  <style>\n" +
-                "    body { font-family: sans-serif; background: #121212; color: #fff; }\n" +
-                "    h1 { color: #00ffcc; }\n" +
-                "  </style>\n" +
-                "  <script type=\"application/ld+json\">\n" +
-                "  {\n" +
-                "    \"@context\": \"https://schema.org\",\n" +
-                "    \"@type\": \"SoftwareApplication\",\n" +
-                "    \"name\": \"FastScrape\",\n" +
-                "    \"operatingSystem\": \"Windows\",\n" +
-                "    \"applicationCategory\": \"DeveloperApplication\",\n" +
-                "    \"offers\": {\n" +
-                "      \"@type\": \"Offer\",\n" +
-                "      \"price\": \"0.00\",\n" +
-                "      \"priceCurrency\": \"USD\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "  </script>\n" +
-                "</head>\n" +
-                "<body>\n" +
-                "  <div class=\"container\">\n" +
-                "    <h1>⚡ FastScrape Native Performance</h1>\n" +
-                "    <p>FastScrape utilizes <strong>AVX2 vector instructions</strong> directly on the raw HTML bytes.</p>\n" +
-                "    \n" +
-                "    <div class=\"card\">\n" +
-                "      <h2>Key Features</h2>\n" +
-                "      <ul>\n" +
-                "        <li>Zero heap allocation or DOM tree generation.</li>\n" +
-                "        <li>Gigabytes/sec scraping speeds.</li>\n" +
-                "        <li>Cleans dirty script/style blocks immediately.</li>\n" +
-                "      </ul>\n" +
-                "    </div>\n" +
-                "    \n" +
-                "    <p>Read more at our <a href=\"https://github.com/andrestubbe/FastScrape\">GitHub page</a> or join the community at <a href=\"https://discord.gg/fastjava\">Discord</a>.</p>\n" +
-                "  </div>\n" +
-                "  \n" +
-                "  <script>\n" +
-                "    console.log(\"Track page views\");\n" +
-                "    function tracking() { return true; }\n" +
-                "  </script>\n" +
-                "</body>\n" +
-                "</html>";
-
-        byte[] htmlBytes = mockHtml.getBytes(StandardCharsets.UTF_8);
-
-        // Open FastScrape
         FastScrape scraper = FastScrape.open();
 
-        System.out.println("\u001B[33m[1] Extracting Clean Readable Text (Stripping CSS & JS blocks)...\u001B[0m");
-        long start = System.nanoTime();
-        String readableText = scraper.extractReadableText(htmlBytes);
-        long end = System.nanoTime();
-        double durationUs = (end - start) / 1000.0;
+        // ── Phase 1: download real Wikipedia page ───────────────────────────
+        header("Phase 1", "Downloading real Wikipedia page");
+        System.out.println("  " + CY + "→" + R + " " + TARGET_URL);
+        System.out.println();
 
-        System.out.println("\u001B[32m--- CLEAN TEXT OUTPUT (Time taken: " + durationUs + " µs) ---\u001B[0m");
-        System.out.println(readableText);
-        System.out.println("\u001B[32m--------------------------------------------------------\u001B[0m");
+        HttpClient http = HttpClient.newHttpClient();
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(TARGET_URL))
+                .header("User-Agent", "FastScrape/0.1.0 Demo")
+                .build();
 
-        System.out.println("\n\u001B[33m[2] Extracting Hyperlinks (<a href=\"...\">)...\u001B[0m");
-        start = System.nanoTime();
-        List<String> links = scraper.extractLinks(htmlBytes);
-        end = System.nanoTime();
-        durationUs = (end - start) / 1000.0;
-        System.out.println("\u001B[32mLinks found (" + links.size() + " items, " + durationUs + " µs):\u001B[0m");
-        for (String link : links) {
-            System.out.println("  🔗 " + link);
+        CompletableFuture<HttpResponse<byte[]>> future =
+                http.sendAsync(req, HttpResponse.BodyHandlers.ofByteArray());
+
+        int s = 0;
+        while (!future.isDone()) {
+            System.out.printf("\r  " + CY + SPIN[s % SPIN.length] + R + " Downloading..." + ER);
+            System.out.flush();
+            Thread.sleep(80);
+            s++;
         }
+        byte[] html = future.get().body();
+        System.out.printf("\r  " + GR + "✔ Downloaded:" + R + "  " + B + "%,d" + R + " bytes of HTML" + ER + "\n\n",
+                html.length);
 
-        System.out.println("\n\u001B[33m[3] Extracting Specific HTML tags (H2 blocks)...\u001B[0m");
-        start = System.nanoTime();
-        List<String> h2Tags = scraper.extractByTag(htmlBytes, "h2");
-        end = System.nanoTime();
-        durationUs = (end - start) / 1000.0;
-        System.out.println("\u001B[32mH2 tag inner content (" + h2Tags.size() + " items, " + durationUs + " µs):\u001B[0m");
-        for (String text : h2Tags) {
-            System.out.println("  🏷️ " + text.trim());
+        // ── Phase 2: extract (fast) then animate ────────────────────────────
+        header("Phase 2", "Native AVX2 scan — watch the tags disappear");
+        System.out.println();
+
+        long t0 = System.nanoTime();
+        String cleanText  = scraper.extractReadableText(html);
+        List<String> links = scraper.extractLinks(html);
+        long parseUs = (System.nanoTime() - t0) / 1_000;
+
+        int htmlLen  = html.length;
+        int cleanLen = cleanText.length();
+        int steps    = 40;
+
+        for (int i = 0; i <= steps; i++) {
+            int  filled   = i * 22 / steps;
+            int  empty    = 22 - filled;
+            int  bytesNow = htmlLen - (htmlLen * i / steps);
+            int  charsNow = cleanLen * i / steps;
+            int  pct      = i * 100 / steps;
+
+            String bar = GR + "█".repeat(filled) + R + DM + "░".repeat(empty) + R;
+            System.out.printf(
+                "\r  HTML [%s] " + B + "%3d%%" + R
+                + "   " + RD + "%,7d" + R + " bytes  →  " + GR + "%,6d" + R + " chars" + ER,
+                bar, pct, bytesNow, charsNow);
+            System.out.flush();
+            Thread.sleep(35);
         }
+        System.out.println();
+        System.out.println();
 
-        System.out.println("\n\u001B[33m[4] Extracting JSON-LD Meta Schema blocks...\u001B[0m");
-        start = System.nanoTime();
-        String jsonLD = scraper.extractJsonLD(htmlBytes);
-        end = System.nanoTime();
-        durationUs = (end - start) / 1000.0;
-        System.out.println("\u001B[32mJSON-LD schema (" + durationUs + " µs):\u001B[0m");
-        System.out.println(jsonLD.trim());
+        // ── Phase 3: extraction stats ────────────────────────────────────────
+        header("Phase 3", "Extraction results");
+        System.out.println();
 
-        System.out.println("\n\u001B[35m====================================================================\u001B[0m");
-        System.out.println("\u001B[36;1m✔ Hero Demo Complete! FastScrape executed flawlessly.\u001B[0m");
-        System.out.println("\u001B[35m====================================================================\u001B[0m");
+        double reduction = 100.0 * (htmlLen - cleanLen) / htmlLen;
+        stat("HTML input",      String.format("%,d bytes", htmlLen));
+        stat("Clean text",      String.format("%,d chars", cleanLen));
+        stat("Noise removed",   String.format("%.1f%%", reduction));
+        stat("Links found",     String.format("%d hrefs", links.size()));
+        stat("Native parse",    String.format("%,d µs  (AVX2)", parseUs));
+        System.out.println();
+
+        // ── Phase 4: clean text preview ─────────────────────────────────────
+        header("Phase 4", "Extracted text preview");
+        System.out.println();
+
+        String preview = cleanText.strip();
+        if (preview.length() > 700) preview = preview.substring(0, 700) + "...";
+        for (String line : preview.split("\n")) {
+            String trimmed = line.strip();
+            if (!trimmed.isEmpty()) System.out.println("  " + trimmed);
+        }
+        System.out.println();
+
+        // ── Footer ───────────────────────────────────────────────────────────
+        footer(String.format("%,d bytes of Wikipedia HTML  →  %,d chars of clean text in %,d µs.",
+                htmlLen, cleanLen, parseUs));
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    private static void stat(String label, String value) {
+        System.out.printf("  " + CY + "%-20s" + R + "  " + B + "%s" + R + "%n", label + ":", value);
+    }
+
+    private static void banner() {
+        System.out.println(MG + "═══════════════════════════════════════════════════════════════");
+        System.out.println(B + CY + "  🔍 FastScrape  —  Native AVX2 HTML Scraper" + R);
+        System.out.println(MG + "═══════════════════════════════════════════════════════════════" + R);
+        System.out.println();
+    }
+
+    private static void header(String phase, String msg) {
+        System.out.println(YL + B + "[" + phase + "]" + R + " " + msg);
+    }
+
+    private static void footer(String msg) {
+        System.out.println(MG + "═══════════════════════════════════════════════════════════════");
+        System.out.println(B + GR + "  ✔ " + msg + R);
+        System.out.println(MG + "═══════════════════════════════════════════════════════════════" + R);
     }
 }
