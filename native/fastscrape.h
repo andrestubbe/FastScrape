@@ -1,5 +1,5 @@
-﻿#ifndef FASTXXX_H
-#define FASTXXX_H
+#ifndef FASTSCRAPE_H
+#define FASTSCRAPE_H
 
 #include <jni.h>
 
@@ -7,12 +7,22 @@
 extern "C" {
 #endif
 
-// Export declarations (Matches fastscrape.def)
-JNIEXPORT void JNICALL Java_fastscrape_FastScrape_doSomethingNative(JNIEnv* env, jobject obj);
+// Export JNI declarations for FastScrapeImpl
+
+JNIEXPORT jstring JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractReadableText(
+    JNIEnv* env, jobject obj, jbyteArray htmlData);
+
+JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractLinks(
+    JNIEnv* env, jobject obj, jbyteArray htmlData);
+
+JNIEXPORT jobjectArray JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractByTag(
+    JNIEnv* env, jobject obj, jbyteArray htmlData, jstring tagName);
+
+JNIEXPORT jstring JNICALL Java_fastscrape_FastScrapeImpl_nativeExtractJsonLD(
+    JNIEnv* env, jobject obj, jbyteArray htmlData);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // FASTXXX_H
-
+#endif // FASTSCRAPE_H

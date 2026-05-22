@@ -1,7 +1,6 @@
-﻿LIBRARY fastscrape
+LIBRARY fastscrape
 EXPORTS
-    ; JNI Method Exports
-    ; Format: Java_packagename_Classname_methodName
-    
-    Java_fastscrape_FastScrape_doSomethingNative
-
+    Java_fastscrape_FastScrapeImpl_nativeExtractReadableText
+    Java_fastscrape_FastScrapeImpl_nativeExtractLinks
+    Java_fastscrape_FastScrapeImpl_nativeExtractByTag
+    Java_fastscrape_FastScrapeImpl_nativeExtractJsonLD
