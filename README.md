@@ -111,7 +111,7 @@ dependencies {
 Download the latest pre-compiled JARs directly to add them to your project's classpath:
 
 1. 📦 [**fastscrape-v0.1.0.jar**](https://github.com/andrestubbe/FastScrape/releases/download/v0.1.0/fastscrape-0.1.0.jar) (The Core Library & native JNI resources)
-2. ⚙️ [**fastcore-v0.1.0.jar**](https://github.com/andrestubbe/FastCore/releases/tag/v0.1.0) (The Mandatory Native Loader)
+2. ⚙️ [**fastcore-v0.1.0.jar**](https://github.com/andrestubbe/FastCore/releases/download/v0.1.0/fastcore-0.1.0.jar) (The Mandatory Native Loader)
 
 > [!IMPORTANT]
 > Both JARs must be present in your classpath for FastScrape's native functions to operate correctly.
@@ -122,6 +122,7 @@ Download the latest pre-compiled JARs directly to add them to your project's cla
 Explore the complete source configurations and benchmarks:
 
 * **⚡ Interactive Demo**: [Demo.java](src/main/java/fastscrape/Demo.java) (crawls, cleans, and structures an ANSI color report).
+* **⚡ Joint Pipeline Demo**: [PipelineDemo.java](https://github.com/andrestubbe/FastSpider/tree/main/examples/PipelineDemo) (orchestrates FastSpider and FastScrape in unison: fetches asynchronously via WinHTTP and parses HTML via AVX2 in a zero-copy pipeline).
 * **📈 Performance Benchmark**: [Benchmark.java](src/main/java/fastscrape/Benchmark.java) (races FastScrape against Java's standard compiler regex engines).
 * **🧪 Test Suite**: [FastScrapeTest.java](src/test/java/fastscrape/FastScrapeTest.java) (comprehensive JUnit 5 validation).
 
@@ -129,6 +130,8 @@ Run the hero demo locally from the command line:
 ```bash
 mvn exec:java "-Dexec.mainClass=fastscrape.Demo"
 ```
+
+For combined crawler & parser pipeline instructions, see the [FastSpider Pipeline Demo](https://github.com/andrestubbe/FastSpider#technical-examples--hero-demos).
 
 ---
 
