@@ -1,0 +1,7 @@
+﻿LIBRARY fastscrape
+EXPORTS
+    ; JNI Method Exports
+    ; Format: Java_packagename_Classname_methodName
+    
+    Java_fastscrape_FastScrape_doSomethingNative
+
