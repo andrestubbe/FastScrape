@@ -2,12 +2,6 @@
 
 **High-performance SIMD/AVX2-powered HTML and XML data-mining engine for the JVM.**
 
-[![Build](https://img.shields.io/github/actions/workflow/status/andrestubbe/FastScrape/maven.yml?branch=main)](https://github.com/andrestubbe/FastScrape/actions)
-[![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![JitPack](https://jitpack.io/v/andrestubbe/FastScrape.svg)](https://jitpack.io/#andrestubbe/FastScrape)
-
 FastScrape is the data-extraction substrate of the **FastJava** web stack. It provides highly-optimized native algorithms to strip formatting blocks, find hyperlinks, extract structured tags, and parse JSON-LD schemas in microseconds—bypassing the latency, memory allocations, and heap pressure of traditional heavy DOM parsers.
 
 ```java
@@ -18,6 +12,12 @@ FastScrape scraper = FastScrape.open();
 // Strips CSS/JS, normalizes spacing, and reformats block-level tags in under 5ms
 String cleanText = scraper.extractReadableText(rawHtml);
 ```
+
+[![Status](https://img.shields.io/badge/status-v0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastScrape/releases/tag/v0.1.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
+[![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe)
 
 ## Table of Contents
 - [Key Features](#key-features)
