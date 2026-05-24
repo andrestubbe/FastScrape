@@ -19,6 +19,9 @@ String cleanText = scraper.extractReadableText(rawHtml);
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
 [![JitPack](https://img.shields.io/badge/JitPack-ready-green.svg)](https://jitpack.io/#andrestubbe)
 
+[![FastKeyboard Showcase](docs/screenshot.png)](https://www.youtube.com/watch?v=BZsqQl7WqWk)
+
+
 ## Table of Contents
 - [Key Features](#key-features)
 - [Performance](#performance)
@@ -155,6 +158,18 @@ Combine FastScrape with other accelerators for maximum efficiency:
 
 ---
 
+## License
+MIT License — See [LICENSE](LICENSE) file for details.
+
+---
+
+## Related Projects
+- [FastCore](https://github.com/andrestubbe/FastCore) — Native Library Loader for Java
+- [FastKeyboard](https://github.com/andrestubbe/FastKeyboard) — High-performance RawInput engine
+- [FastTheme](https://github.com/andrestubbe/FastTheme) — Advanced UI styling engine
+
+---
 **Part of the FastJava Ecosystem** — *Making the JVM faster.*
 
-Made with ⚡ by Andre Stubbe
+
+
