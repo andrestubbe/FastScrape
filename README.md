@@ -61,10 +61,10 @@ Measured on **Intel/AMD x64 Hardware** with AVX2 instruction support.
 
 | Method | Description | Target Path |
 |--------|-------------|-------------|
-| `extractReadableText(...)` | Cleans document markup and reformats block spacing for LLMs. | [Reference →](REFERENCE.md#extractreadabletext) |
-| `extractLinks(...)` | Scans for anchor elements and aggregates hyper-links natively. | [Reference →](REFERENCE.md#extractlinks) |
-| `extractByTag(...)` | Finds all elements matching target name and extracts inner content. | [Reference →](REFERENCE.md#extractbytag) |
-| `extractJsonLD(...)` | Isolates all linked JSON-LD metadata schemas concurrently. | [Reference →](REFERENCE.md#extractjsonld) |
+| `extractReadableText(...)` | Cleans document markup and reformats block spacing for LLMs. | [Reference →](docs/REFERENCE.md#extractreadabletext) |
+| `extractLinks(...)` | Scans for anchor elements and aggregates hyper-links natively. | [Reference →](docs/REFERENCE.md#extractlinks) |
+| `extractByTag(...)` | Finds all elements matching target name and extracts inner content. | [Reference →](docs/REFERENCE.md#extractbytag) |
+| `extractJsonLD(...)` | Isolates all linked JSON-LD metadata schemas concurrently. | [Reference →](docs/REFERENCE.md#extractjsonld) |
 
 > [!TIP]
 > Use `FastScrape.open()` to obtain the thread-safe native implementation class.
