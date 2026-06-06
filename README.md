@@ -13,7 +13,7 @@ FastScrape scraper = FastScrape.open();
 String cleanText = scraper.extractReadableText(rawHtml);
 ```
 
-[![Status](https://img.shields.io/badge/status-v0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastScrape/releases/tag/v0.1.0)
+[![Status](https://img.shields.io/badge/status-0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastScrape/releases/tag/0.1.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java](https://img.shields.io/badge/Java-17+-blue.svg)](https://www.java.com)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010+-lightgrey.svg)]()
@@ -42,11 +42,11 @@ String cleanText = scraper.extractReadableText(rawHtml);
 
 ---
 
-## 📊 Performance (v0.1.0)
+## 📊 Performance (0.1.0)
 
 Measured on **Intel/AMD x64 Hardware** with AVX2 instruction support.
 
-| Operation | Input Size | Java (Regex / Standard) | FastScrape Native (v0.1.0) | Speedup |
+| Operation | Input Size | Java (Regex / Standard) | FastScrape Native (0.1.0) | Speedup |
 |-----------|------------|-------------------------|---------------------------|---------|
 | **Text Strip** | 5 MB Page  | ~210 ms                 | **~5 ms**                 | **42x** |
 | **Link Scan**  | 5 MB Page  | ~45 ms                  | **~2 ms**                 | **22x** |
@@ -89,14 +89,14 @@ Add the JitPack repository and the dependencies to your `pom.xml`:
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
         <artifactId>fastscrape</artifactId>
-        <version>v0.1.0</version>
+        <version>0.1.0</version>
     </dependency>
 
     <!-- FastCore (Required Native Loader) -->
     <dependency>
         <groupId>com.github.andrestubbe</groupId>
         <artifactId>fastcore</artifactId>
-        <version>v0.1.0</version>
+        <version>0.1.0</version>
     </dependency>
 </dependencies>
 ```
@@ -108,16 +108,16 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.andrestubbe:fastscrape:v0.1.0'
-    implementation 'com.github.andrestubbe:fastcore:v0.1.0'
+    implementation 'com.github.andrestubbe:fastscrape:0.1.0'
+    implementation 'com.github.andrestubbe:fastcore:0.1.0'
 }
 ```
 
 ### Option 3: Direct Download (No Build Tool)
 Download the latest JARs directly to add them to your classpath:
 
-1. 📦 **[fastscrape-v0.1.0.jar](https://github.com/andrestubbe/FastScrape/releases/download/v0.1.0/fastscrape-v0.1.0.jar)** (The Core Library)
-2. ⚙️ **[fastcore-v0.1.0.jar](https://github.com/andrestubbe/FastCore/releases/download/v0.1.0/fastcore-v0.1.0.jar)** (The Mandatory Native Loader)
+1. 📦 **[fastscrape-0.1.0.jar](https://github.com/andrestubbe/FastScrape/releases/download/0.1.0/fastscrape-0.1.0.jar)** (The Core Library)
+2. ⚙️ **[fastcore-0.1.0.jar](https://github.com/andrestubbe/FastCore/releases/download/0.1.0/fastcore-0.1.0.jar)** (The Mandatory Native Loader)
 
 > [!IMPORTANT]
 > All JARs must be in your classpath for the native JNI calls to function correctly.
@@ -165,7 +165,7 @@ MIT License — See [LICENSE](LICENSE) file for details.
 
 ## Related Projects
 - [FastCore](https://github.com/andrestubbe/FastCore) — Native Library Loader for Java
-- [FastKeyboard](https://github.com/andrestubbe/FastKeyboard) — High-performance RawInput engine
+- [FastScrape](https://github.com/andrestubbe/FastScrape) — High-performance RawInput engine
 - [FastTheme](https://github.com/andrestubbe/FastTheme) — Advanced UI styling engine
 
 ---
